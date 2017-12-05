@@ -19,6 +19,12 @@
 # This script will check the status of a remote Lenovo Enterprise Flex Chassis
 # orginal file check_ibm_bladecenter.py renamed and modified by Silvio Erdenberger, 
 #
+# version 1.3
+# * removed chassis-status,bladehealth,blowers
+# * added voltage
+# * renamed powermodules -> power
+# * TBD temperature review
+#
 # version 1.2
 # changes 
 # * renamed --snmp-password to --snmp_apassword
@@ -51,15 +57,9 @@
 # fans -> adjust to XCC finish 
 # changed to XCC OID String, tested with SR950 (2/4 PSU), SR630 (2 PSU)
 #  
-# voltage -> TBD 
+# voltage -> adjust to XCC finish
+# changed to XCC OID String, tested with SR950 (2/4 PSU), SR630 (2 PSU)
 #  
-# chassis-status -> TBD to remove, because the XCC don't have a chassis 
-#
-# bladehealth -> TBD to remove, because the XCC don't have a chassis
-#
-# blowers -> TBD to remove, because the XCC don't have a chassis
-#
-
 
 # No real need to change anything below here
 version="1.2"
@@ -70,8 +70,6 @@ unknown=3
 not_present = -1 
 exit_status = -1
 
-
-
 state = {}
 state[not_present] = "Not Present"
 state[ok] = "OK"
@@ -79,28 +77,21 @@ state[warning] = "Warning"
 state[critical] = "Critical"
 state[unknown] = "Unknown"
 
-
 longserviceoutput="\n"
 perfdata=""
 summary=""
 sudo=False
-
 
 from sys import exit
 from sys import argv
 from os import getenv,putenv,environ
 import subprocess
 
-
-
-
-
-
 # Parse some Arguments
 from optparse import OptionParser
 parser = OptionParser()
 parser.add_option("-m","--mode", dest="mode",
-	help="Which check mode is in use (powermodules,system-health,temperature,[chassis-status,bladehealth,]blowers,fans])")
+	help="Which check mode is in use (power,system-health,temperature,fans,voltage)")
 parser.add_option("-H","--host", dest="host",
 	help="Hostname or IP address of the host to check")
 parser.add_option("-w","--warning", dest="warning_threshold",
@@ -281,13 +272,13 @@ def getTable(base_oid):
 		myTable[column][row] = resultValue
 	return myTable
 
-def check_powermodules():
+def check_power():
 #	print "snmp %s" % opts.mode
 				 #BASE OID
 				 #	    #XCC OID
 				 #	    #           #PWR Mod OID
-	powermodules = getTable('1.3.6.1.4.1.19046.11.1.1.11.2')
-#	print "pwmod %s" % powermodules
+	powers = getTable('1.3.6.1.4.1.19046.11.1.1.11.2')
+#	print "pwmod %s" % powers
 	index = 1	# powerIndex
 	exists = 2	# powerFruName
 	# 		# powerPartNumber
@@ -295,7 +286,7 @@ def check_powermodules():
 	#		# powerFRUSerialNumber
 	status = 6	# powerHealthStatus
 	num_ok = 0
-	for i in powermodules.values():
+	for i in powers.values():
 		myIndex = i[index]
 		myStatus = i[status]
 		myDetails = i[details]
@@ -305,10 +296,10 @@ def check_powermodules():
 			num_ok = num_ok + 1
 		else:
 			nagios_status(warning)
-			add_summary( 'Powermodule "%s" status "%s". %s. ' % (myIndex,myStatus,myDetails) )
-		add_long('Powersupply "%s" status "%s". %s. ' % (myIndex,myStatus,myDetails) )
-	add_summary( "%s out of %s powermodules are healthy" % (num_ok, len(powermodules) ) )
-	add_perfdata( "'Number of powermodules'=%s" % (len(powermodules) ) )
+			add_summary( 'Power "%s" status "%s". %s. ' % (myIndex,myStatus,myDetails) )
+		add_long('Power "%s" status "%s". %s. ' % (myIndex,myStatus,myDetails) )
+	add_summary( "%s out of %s power are healthy" % (num_ok, len(powers) ) )
+	add_perfdata( "'Number of power'=%s" % (len(powers) ) )
 		
 	nagios_status(ok)
 
@@ -336,163 +327,6 @@ def check_fans():
 	add_perfdata( "'Number of fans'=%s" % (len(fans) ) )
 
 	nagios_status(ok)
-
-def check_blowers():
-	blower10speed = snmpget("1.3.6.1.4.1.2.3.51.2.2.3.50.1.5.10")
-	blower10state = snmpget("1.3.6.1.4.1.2.3.51.2.2.3.50.1.4.10")
-	
-	add_long( "Blower 10 state=%s speed=%s" % (blower10state,blower10speed) )
-	add_perfdata("blower10=%s" %(blower10speed.split(None,1)[0] ))
-	# Check blower 10
-	if blower10state == "1":
-		nagios_status(ok)
-		add_summary("Blower10 OK. " )
-	else:
-		add_summary("Blower10 NOT OK. ")
-		nagios_status(warning)
-	
-	if blower1state != "1" and blower2state != "1" and blower3state != "1" and blower4state != "1" and blower5state != "1" and blower6state != "1" and blower7state != "1" and blower8state != "1" and blower9state != "1" and blower10state != "1":
-		nagios_status(critical)
-	
-
-def check_chassis_status():
-	chassis = getTable('1.3.6.1.4.1.2.3.51.2.2.5.2')
-	oids = chassis.values()[0]
-	chassis_oid = {
-		10 :"bistBootRomFlashImage",
-		11 :"bistEthernetPort1",
-		113 :"bistSwitchModulesCommunicating",
-		14 :"bistExternalI2CDevices",
-		19 :"bistInternalEthernetSwitch",
-		25 :"bistPrimaryKernel",
-		26 :"bistSecondaryKernel",
-		29 :"bistPhysicalNetworkLink",
-		30 :"bistLogicalNetworkLink",
-		33 :"bistBladesInstalled",
-		49 :"bistBladesCommunicating",
-		5  :"bistRtc",
-		65 :"bistBlowersInstalled",
-		7  :"bistLocalI2CBus",
-		73 :"bistBlowersFunctional",
-		74 :"bistMediaTrayInstalled",
-		75 :"bistMediaTrayCommunicating",
-		8  :"bistPrimaryMainAppFlashImage",
-		81 :"bistPowerModulesInstalled",
-		89 :"bistPowerModulesFunctional",
-		9  :"bistSecondaryMainAppFlashImage",
-		97 :"bistSwitchModulesInstalled",
-	}
-	
-	# Check if all blades are working
-	bistBladesInstalled = 33
-	bistBlowersInstalled = 65
-	bistMediaTrayInstalled = 74
-	bistPowerModulesInstalled = 81
-	bistSwitchModulesInstalled = 97
-	
-	bistSwitchModulesCommunicating = 113
-	bistBladesCommunicating = 49
-	bistMediaTrayCommunicating = 75
-	bistBlowersFunctional = 73
-	bistPowerModulesFunctional = 89
-	
-	# Check Blade Communications
-	if not oids.has_key(bistBladesInstalled) or not oids.has_key(bistBladesCommunicating):
-		add_summary( "Blades N/A. ")
-	elif oids[bistBladesInstalled] == oids[bistBladesCommunicating]:
-		nagios_status(ok)
-		add_summary( "Blades OK. " )
-	else:
-		nagios_status(warning)
-		add_summary( "Blades NOT OK. " )
-	# Check PowerModule Status
-	if not oids.has_key(bistPowerModulesFunctional) or not oids.has_key(bistPowerModulesInstalled):
-		add_summary( "Powermodules N/A. ")
-	elif oids[bistPowerModulesFunctional] == oids[bistPowerModulesInstalled]:
-		nagios_status(ok)
-		add_summary( "PowerModules OK. " )
-	else:
-		nagios_status(warning)
-		add_summary( "PowerModules NOT OK. " )
-	
-	# Check SwitcModule Communications
-	if not oids.has_key(bistSwitchModulesCommunicating) or not oids.has_key(bistSwitchModulesInstalled):
-		add_summary( "SwitchModules N/A. ")
-	if oids[bistSwitchModulesCommunicating] == oids[bistSwitchModulesInstalled]:
-		nagios_status(ok)
-		add_summary("Switchmodules OK. ")
-	else:
-		nagios_status(warning)
-		add_summary( "Switchmodules NOT OK. ")
-	# Check blower status
-	if not oids.has_key(bistBlowersInstalled) or not oids.has_key(bistBlowersFunctional):
-		add_summary( "Blowers N/A. ")
-	elif oids[bistBlowersInstalled] == oids[bistBlowersFunctional]:
-		nagios_status(ok)
-		add_summary( "Blowers OK. " )
-	else:
-		nagios_status(warning)
-		add_summary( "Blowers NOT OK. " )
-	# Check Media Tray Status
-	if not oids.has_key(bistMediaTrayCommunicating) or not oids.has_key(bistMediaTrayInstalled):
-		nagios_status(ok)
-		add_summary( "Media Trays N/A. ")
-	elif oids[bistMediaTrayCommunicating] == oids[bistMediaTrayInstalled]:
-		add_summary( "Media Trays OK. " )
-	else:
-		nagios_status(warning)
-		add_summary( "Media Trays NOT OK. " )
-	
-	
-	# status_oids, oids that where 0 == ok
-	status_oids = ( 5,7,8,9,10,11,14,19,20,21,22,23,24,25,26,27,28,29,30, )
-	
-	add_long("Other Sensors: ")
-	sensor_status = ok	
-	for oid in status_oids:
-		if not chassis_oid.has_key(oid): continue
-		oidValue = oids[oid]
-		oidName = chassis_oid[oid]
-		if oidValue == "0":
-			friendly_status = "%s (ok)" % oidValue
-		else:
-			friendly_status = "%s (not ok)" % oidValue
-			nagios_status(warning)
-			sensor_status = warning
-			add_summary( "%s is %s" % oidName, friendly_status)
-		add_long( " %s status: %s" % (oidName,friendly_status) )
-	if sensor_status == ok:
-		add_summary( "Other Sensors: OK. ")
-			
-
-def check_bladehealth():
-	blades = getTable('1.3.6.1.4.1.2.3.51.2.22.1.5.2.1')
-	bladestate = getTable('1.3.6.1.4.1.2.3.51.2.22.1.5.1.1').values()
-	
-	index,bladeid,severity,description = (1,2,3,4)
-	good_blades = 0
-	total_blades = 0
-	for i,row in enumerate(blades.values()):
-		myIndex = row[index]
-		myBladeid = row[bladeid]
-		mySeverity = row[severity]
-		myDescription = row[description]
-		try: myName = bladestate[i][6]
-		except: myName = ""
-		if mySeverity == "(No severity)": continue
-		add_long( "blade%s (%s): %s %s" % (myBladeid,myName,mySeverity, myDescription) )
-		total_blades += 1
-		if mySeverity == 'Good':
-			nagios_status(ok)
-			good_blades += 1
-		else:
-			nagios_status(warning)
-			add_summary( "blade%s (%s): %s %s. " % (myBladeid,myName,mySeverity, myDescription) )
-	if good_blades == total_blades:
-		add_summary( "%s out of %s blades in Good health. " % (good_blades, total_blades))
-		nagios_status(ok)
-	else:
-		nagios_status(warning)
 
 def check_systemhealth():
 	systemhealthstat = snmpget('1.3.6.1.4.1.19046.11.1.1.4.1.0')
@@ -569,26 +403,49 @@ def check_temperature():
 #		add_summary( "ambient temperature (%s) is over warning thresholds (%s). " % (str_temp, opts.warning_threshold) )
 #	else:
 #		add_summary( "Ambient temperature = %s. " % (str_temp) )
-	
+
+def check_voltage():
+	# voltage test
+	voltages = getTable("1.3.6.1.4.1.19046.11.1.1.2.2")
+#	print "voltage %s" % voltages
+	voltIndex,voltDescr,voltReading,voltNominalReading,voltNonRecovLimitHigh,voltCritLimitHigh,voltNonCritLimitHigh,voltNonRecovLimitLow,voltCritLimitLow,voltNonCritLimitLow,voltHealthStatus = (1,2,3,4,5,6,7,8,9,10,11)
+	num_ok = 0
+	for i in voltages.values():
+		myIndex = i[voltIndex]
+		myStatus = i[voltHealthStatus]
+		myDescr = i[voltDescr]
+		myVolt = i[voltReading]
+                myVoltCritLimitHigh = i[voltCritLimitHigh]
+                if myVoltCritLimitHigh == "N/A": myVoltCritLimitHigh = ""
+                myVoltNonCritLimitHigh = i[voltNonCritLimitHigh]
+                if myVoltNonCritLimitHigh == "N/A": myVoltNonCritLimitHigh = ""
+                if myIndex == opts.exclude: continue
+                if myStatus != "Normal":
+                        nagios_status(warning)
+                        add_summary( 'Voltage "%s" status "%s". %s. ' % (myIndex,myStatus,myDescr) )
+                else:
+                        num_ok = num_ok + 1
+                add_long('Voltage "%s" status "%s". %s:  %s;%s;%s' % (myIndex,myStatus,myDescr,myVolt,myVoltNonCritLimitHigh,myVoltCritLimitHigh) )
+        add_summary( "%s out of %s voltages are healthy" % (num_ok, len(voltages) ) )
+        add_perfdata( "'Number of voltages'=%s" % (len(voltages) ) )
+
+        nagios_status(ok)
+
 
 
 if __name__ == '__main__':
 	try:
 		set_snmp_options()
-		if opts.mode == 'powermodules':
-			check_powermodules()
+		if opts.mode == 'power':
+			check_power()
 		elif opts.mode == 'system-health':
 			check_systemhealth()
 		elif opts.mode == 'temperature':
 			check_temperature()
-		elif opts.mode == 'chassis-status':
-			check_chassis_status()
-		elif opts.mode == 'bladehealth':
-			check_bladehealth()
-		elif opts.mode == 'blowers':
-			check_blowers()
 		elif opts.mode == 'fans':
 			check_fans()
+		elif opts.mode == 'voltage':
+			check_voltage()
 		else:
 			parser.error("%s is not a valid option for --mode" % opts.mode)
 	except Exception, e:
