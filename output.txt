@@ -59,4 +59,12 @@ Temperature "16" status "Normal". CPU 7 DTS:  -41.6;-0.6;-0.2
 Temperature "17" status "Normal". CPU 8 Temp:  63;;
 Temperature "18" status "Normal". CPU 8 DTS:  -34.8;-0.6;-0.2
 
+[lserdenberger@dk-serdenberger-access check_lenovo_xcc_python]$ python check_lenovo_xcc.py  -H 192.168.14.71 --snmp_version 3 --snmp_username snmpv3 --snmp_apassword APassw0rd! --snmp_security_level authPriv --snmp_ppassword PPassw0rd! --snmp_aprotocol SHA --snmp_pprotocol AES --mode voltage
+OK - 4 out of 4 voltages are healthy |  'Number of voltages'=4 
+
+Voltage "1" status "Normal". CMOS Battery:  3.1200;;
+Voltage "2" status "Normal". Sys Brd 3.3V:  3.2130;;3.8556
+Voltage "3" status "Normal". Sys Brd 5V:  4.899;;5.497
+Voltage "4" status "Normal". Sys Brd 12V:  11.880;;13.200
+
 [lserdenberger@dk-serdenberger-access check_lenovo_xcc_python]$
