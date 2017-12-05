@@ -1,0 +1,62 @@
+[lserdenberger@dk-serdenberger-access check_lenovo_xcc_python]$ python check_lenovo_xcc.py  -H 192.168.48.2 --snmp_version 3 --snmp_username snmpv3 --snmp_apassword APassw0rd! --snmp_security_level authPriv --snmp_ppassword PPassw0rd! --snmp_aprotocol SHA --snmp_pprotocol AES --mode powermodules
+OK - 4 out of 4 powermodules are healthy |  'Number of powermodules'=4
+
+Powersupply "1" status "Normal". 01GV272.
+Powersupply "2" status "Normal". 01GV272.
+Powersupply "3" status "Normal". 01GV272.
+Powersupply "4" status "Normal". 01GV272.
+
+[lserdenberger@dk-serdenberger-access check_lenovo_xcc_python]$ python check_lenovo_xcc.py  -H 192.168.48.2 --snmp_version 3 --snmp_username snmpv3 --snmp_apassword APassw0rd! --snmp_security_level authPriv --snmp_ppassword PPassw0rd! --snmp_aprotocol SHA --snmp_pprotocol AES --mode powermodules
+Warning - Powermodule "1" status "Warning". 01GV272. 3 out of 4 powermodules are healthy |  'Number of powermodules'=4
+
+Powersupply "1" status "Warning". 01GV272.
+Powersupply "2" status "Normal". 01GV272.
+Powersupply "3" status "Normal". 01GV272.
+Powersupply "4" status "Normal". 01GV272.
+
+[lserdenberger@dk-serdenberger-access check_lenovo_xcc_python]$ python check_lenovo_xcc.py  -H 192.168.48.2 --snmp_version 3 --snmp_username snmpv3 --snmp_apassword APassw0rd! --snmp_security_level authPriv --snmp_ppassword PPassw0rd! --snmp_aprotocol SHA --snmp_pprotocol AES --mode fans
+OK - 12 out of 12 fans are healthy |  'Number of fans'=12
+
+Fan "1" status "Normal". Fan 1 Tach.  29% of maximum
+Fan "2" status "Normal". Fan 2 Tach.  32% of maximum
+Fan "3" status "Normal". Fan 3 Tach.  29% of maximum
+Fan "4" status "Normal". Fan 4 Tach.  29% of maximum
+Fan "5" status "Normal". Fan 5 Tach.  32% of maximum
+Fan "6" status "Normal". Fan 6 Tach.  29% of maximum
+Fan "7" status "Normal". Fan 7 Tach.  29% of maximum
+Fan "8" status "Normal". Fan 8 Tach.  32% of maximum
+Fan "9" status "Normal". Fan 9 Tach.  29% of maximum
+Fan "10" status "Normal". Fan 10 Tach.  29% of maximum
+Fan "11" status "Normal". Fan 11 Tach.  32% of maximum
+Fan "12" status "Normal". Fan 12 Tach.  29% of maximum
+
+[lserdenberger@dk-serdenberger-access check_lenovo_xcc_python]$ python check_lenovo_xcc.py  -H 192.168.48.2 --snmp_version 3 --snmp_username snmpv3 --snmp_apassword APassw0rd! --snmp_security_level authPriv --snmp_ppassword PPassw0rd! --snmp_aprotocol SHA --snmp_pprotocol AES --mode system-health
+summary {1: {1: '1', 2: 'Warning', 3: 'Redundancy Degraded for Power Resource has asserted.'}, 2: {1: '2', 2: 'Warning', 3: 'Power Supply 1 has lost input.'}}
+Critical - System-Level Error. Redundancy Degraded for Power Resource has asserted.. Power Supply 1 has lost input..  |
+
+* Redundancy Degraded for Power Resource has asserted..
+* Power Supply 1 has lost input..
+
+[lserdenberger@dk-serdenberger-access check_lenovo_xcc_python]$ python check_lenovo_xcc.py  -H 192.168.48.2 --snmp_version 3 --snmp_username snmpv3 --snmp_apassword APassw0rd! --snmp_security_level authPriv --snmp_ppassword PPassw0rd! --snmp_aprotocol SHA --snmp_pprotocol AES --mode temperature
+OK - 18 out of 18 temperature are healthy |  'Number of temperatures'=18
+
+Temperature "1" status "Normal". Ambient Temp:  22;43;46
+Temperature "2" status "Normal". Exhaust Temp:  70;;
+Temperature "3" status "Normal". CPU 1 Temp:  77;;
+Temperature "4" status "Normal". CPU 1 DTS:  -20.8;-0.6;-0.2
+Temperature "5" status "Normal". CPU 2 Temp:  62;;
+Temperature "6" status "Normal". CPU 2 DTS:  -36.0;-0.6;-0.2
+Temperature "7" status "Normal". CPU 3 Temp:  61;;
+Temperature "8" status "Normal". CPU 3 DTS:  -36.2;-0.6;-0.2
+Temperature "9" status "Normal". CPU 4 Temp:  70;;
+Temperature "10" status "Normal". CPU 4 DTS:  -28.0;-0.6;-0.2
+Temperature "11" status "Normal". CPU 5 Temp:  60;;
+Temperature "12" status "Normal". CPU 5 DTS:  -37.8;-0.6;-0.2
+Temperature "13" status "Normal". CPU 6 Temp:  62;;
+Temperature "14" status "Normal". CPU 6 DTS:  -35.2;-0.6;-0.2
+Temperature "15" status "Normal". CPU 7 Temp:  56;;
+Temperature "16" status "Normal". CPU 7 DTS:  -41.6;-0.6;-0.2
+Temperature "17" status "Normal". CPU 8 Temp:  63;;
+Temperature "18" status "Normal". CPU 8 DTS:  -34.8;-0.6;-0.2
+
+[lserdenberger@dk-serdenberger-access check_lenovo_xcc_python]$
