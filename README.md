@@ -1,5 +1,4 @@
 # check_lenovo_xcc_python
-script to monitor LENOVO servers with  XCC temperature, [voltage], fans and health
-part voltage not yet implemented
-please give feedback to "serdenberger [AT] lenovo [POINT} com"
-working on this script, not yet finish
+version 1.3, so far finish
+script to monitor LENOVO servers with  XCC system health, temperature, voltage, fans and power
+please give feedback to "serdenberger [AT] lenovo [POINT] com"
