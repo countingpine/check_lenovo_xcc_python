@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # Copyright 2010, Pall Sigurdsson <palli@opensource.is>
 #
@@ -9,15 +9,20 @@
 #
 # This script is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.	If not, see <http://www.gnu.org/licenses/>.
 # About this script
 # 
 # This script will check the status of a remote Lenovo Enterprise Flex Chassis
 # orginal file check_ibm_bladecenter.py renamed and modified by Silvio Erdenberger, 
+#
+# version 1.4
+# * added cpu storage and memory
+# * added critical judgment for power and fans
+# * support python2.7 and python3.5
 #
 # version 1.3
 # * removed chassis-status,bladehealth,blowers
@@ -62,7 +67,7 @@
 #  
 
 # No real need to change anything below here
-version="1.2"
+version="1.4"
 ok=0
 warning=1
 critical=2
@@ -84,14 +89,19 @@ sudo=False
 
 from sys import exit
 from sys import argv
+from sys import exc_info
 from os import getenv,putenv,environ
 import subprocess
+from distutils.log import Log
+# Init log level to infor
+log = Log(2)
+printf = log.info
 
 # Parse some Arguments
 from optparse import OptionParser
 parser = OptionParser()
 parser.add_option("-m","--mode", dest="mode",
-	help="Which check mode is in use (power,system-health,temperature,fans,voltage)")
+	help="Which check mode is in use (power,cpu,storage,system-health,temperature,fans,voltage)")
 parser.add_option("-H","--host", dest="host",
 	help="Hostname or IP address of the host to check")
 parser.add_option("-w","--warning", dest="warning_threshold",
@@ -164,12 +174,12 @@ def set_snmp_options():
 	snmp_options += " -t %s " % (opts.snmp_timeout)
 
 def error(errortext):
-        print "* Error: %s" % errortext
-        exit(unknown)
+		printf ("* Error: %s" % errortext)
+		exit(unknown)
 
 def debug( debugtext ):
-        if opts.debug:
-                print  debugtext
+		if opts.debug:
+				printf	(debugtext)
 
 def nagios_status( newStatus ):
 	global exit_status
@@ -178,41 +188,43 @@ def nagios_status( newStatus ):
 
 '''runCommand: Runs command from the shell prompt. Exit Nagios style if unsuccessful'''
 def runCommand(command):
-  debug( "Executing: %s" % command )
-  proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE,)
-  stdout, stderr = proc.communicate('through stdin to stdout')
-  if proc.returncode > 0:
-    print "Error %s: %s\n command was: '%s'" % (proc.returncode,stderr.strip(),command)
-    debug("results: %s" % (stdout.strip() ) )
-    if proc.returncode == 127: # File not found, lets print path
-        path=getenv("PATH")
-        print "Check if your path is correct %s" % (path)
-    if stderr.find('Password:') == 0 and command.find('sudo') == 0:
-      print "Check if user is in the sudoers file"
-    if stderr.find('sorry, you must have a tty to run sudo') == 0 and command.find('sudo') == 0:
-      print "Please remove 'requiretty' from /etc/sudoers"
-    exit(unknown)
-  else:
-    return stdout
+	debug( "Executing: %s" % command )
+	proc = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE,universal_newlines=True)
+	stdout, stderr = proc.communicate('through stdin to stdout')
+	if proc.returncode > 0:
+		if proc.returncode == 1: # timeout
+			printf ("server %s is not accessible at the moment" % opts.host)
+		debug ("Error %s: %s\n command was: '%s'" % (proc.returncode,stderr.strip(),command))
+		debug("results: %s" % (stdout.strip() ) )
+		if proc.returncode == 127: # File not found, lets print path
+			path=getenv("PATH")
+			printf ("Check if your path is correct %s" % (path))
+		if stderr.find('Password:') == 0 and command.find('sudo') == 0:
+			printf ("Check if user is in the sudoers file")
+		if stderr.find('sorry, you must have a tty to run sudo') == 0 and command.find('sudo') == 0:
+			printf ("Please remove 'requiretty' from /etc/sudoers")
+		exit(unknown)
+	else:
+		return stdout
 
 def end():
 	global summary
 	global longserviceoutput
 	global perfdata
 	global exit_status
-        print "%s - %s | %s" % (state[exit_status], summary,perfdata)
-        print longserviceoutput
+	printf ("%s - %s | %s" % (state[exit_status], summary,perfdata))
+	printf (longserviceoutput)
 	if exit_status < 0: exit_status = unknown
-        exit(exit_status)
+	exit(exit_status)
 
 def add_perfdata(text):
-        global perfdata
-        text = text.strip()
-        perfdata = perfdata + " %s " % (text)
+		global perfdata
+		text = text.strip()
+		perfdata = perfdata + " %s " % (text)
 
 def add_long(text):
-        global longserviceoutput
-        longserviceoutput = longserviceoutput + text + '\n'
+		global longserviceoutput
+		longserviceoutput = longserviceoutput + text + '\n'
 
 def add_summary(text):
 	global summary
@@ -268,20 +280,19 @@ def getTable(base_oid):
 		index = oid.strip().split('.')
 		column = int(index.pop())
 		row = int(index.pop())
-		if not myTable.has_key(column): myTable[column] = {}
+		#if not myTable.has_key(column): myTable[column] = {}
+		if column not in myTable: myTable[column] = {}
 		myTable[column][row] = resultValue
 	return myTable
 
 def check_power():
-#	print "snmp %s" % opts.mode
-				 #BASE OID
-				 #	    #XCC OID
-				 #	    #           #PWR Mod OID
+	 #BASE OID
+	 #		#XCC OID
+	 #		#			#PWR Mod OID
 	powers = getTable('1.3.6.1.4.1.19046.11.1.1.11.2')
-#	print "pwmod %s" % powers
 	index = 1	# powerIndex
 	exists = 2	# powerFruName
-	# 		# powerPartNumber
+	#		# powerPartNumber
 	details = 4	# powerFRUNumber
 	#		# powerFRUSerialNumber
 	status = 6	# powerHealthStatus
@@ -294,22 +305,23 @@ def check_power():
 		if myIndex == opts.exclude: continue
 		if myStatus == "Normal":
 			num_ok = num_ok + 1
-		else:
+		elif myStatus == "Warning":
 			nagios_status(warning)
-			add_summary( 'Power "%s" status "%s". %s. ' % (myIndex,myStatus,myDetails) )
-		add_long('Power "%s" status "%s". %s. ' % (myIndex,myStatus,myDetails) )
+			add_summary( '"%s" status "%s". ' % (myExists,myStatus) )
+		else:
+			nagios_status(critical)
+			add_summary( '"%s" status "%s".' % (myExists, myStatus) )
+		add_long('Power "%s" status "%s". ' % (myIndex,myStatus) )
 	add_summary( "%s out of %s power are healthy" % (num_ok, len(powers) ) )
 	add_perfdata( "'Number of power'=%s" % (len(powers) ) )
 		
 	nagios_status(ok)
 
 def check_fans():
-	" Check fan status"
-                         #BASE OID
-                         #          #XCC OID
-                         #          #           #PWR Mod OID
-        fans = getTable('1.3.6.1.4.1.19046.11.1.1.3.2.1')
-#	print "fans %s" % fans
+	 #BASE OID
+	 #	#XCC OID
+	 #	#	#PWR Mod OID
+	fans = getTable('1.3.6.1.4.1.19046.11.1.1.3.2.1')
 	fanIndex,fanDescr,fanSpeed,fanNonRecovLimitHigh,fanCritLimitHigh,fanNonCritLimitHigh,fanNonRecovLimitLow,fanCritLimitLow,fanNonCritLimitLow,fanHealthStatus = (1,2,3,4,5,6,7,8,9,10)
 	num_ok = 0
 	for i in fans.values():
@@ -319,9 +331,12 @@ def check_fans():
 		if myIndex == opts.exclude: continue
 		if myStatus == "Normal" or myStatus == "Unknown":
 			num_ok = num_ok + 1
-		else:
+		elif myStatus == "Warning":
 			nagios_status(warning)
 			add_summary( 'Fan "%s" status "%s". %s. ' % (myIndex,myStatus,myDescr) )
+		else:
+			nagios_status(critical)
+			add_summary( 'Fan "%s" status "%s". %s. ' % (myIndex, myStatus,myDescr) )
 		add_long('Fan "%s" status "%s". %s. %s ' % (myIndex,myStatus,myDescr,i[fanSpeed]) )
 	add_summary( "%s out of %s fans are healthy" % (num_ok, len(fans) ) )
 	add_perfdata( "'Number of fans'=%s" % (len(fans) ) )
@@ -349,7 +364,6 @@ def check_systemhealth():
 		add_summary("Server health unknown (oid 1.3.6.1.4.1.19046.11.1.1.4.1.0 returns %s). " % systemhealthstat)
 	if systemhealthstat == "2" or systemhealthstat == "4" or systemhealthstat == "0": 
 		summary = getTable('1.3.6.1.4.1.19046.11.1.1.4.2')
-		print "summary %s" % summary
 		for row in summary.values():
 			if row[severity] == 'Good':
 				nagios_status(ok)
@@ -360,54 +374,43 @@ def check_systemhealth():
 			text_row_description = row[description]
 #			text_row_description = text_row_description.replace(" ", "")
 #			text_row_description = text_row_description.decode("hex")
-			add_summary( "%s. " % (text_row_description) )
-			add_long( "* %s. " % (text_row_description) )
+			#add_summary( "[%s] %s " % (row[severity], text_row_description) )
+			add_long( "*[%s] %s " % (row[severity], text_row_description) )
 	
 def check_temperature():
 	# set some sensible defaults
 	if opts.warning_threshold is None: opts.warning_threshold = 28
 	if opts.critical_threshold is None: opts.critical_threshold = 35
-                                 #BASE OID
-                                 #          #XCC OID
-                                 #          #           #Temp OID
+								 #BASE OID
+								 #			#XCC OID
+								 #			#			#Temp OID
 	temperatures = getTable("1.3.6.1.4.1.19046.11.1.1.1.2.1")
 	tempIndex,tempDescr,tempReading,tempNominalReading,tempNonRecovLimitHigh,tempCritLimitHigh,tempNonCritLimitHigh,tempNonRecovLimitLow,tempCritLimitLow,tempNonCritLimitLow,tempHealthStatus = (1,2,3,4,5,6,7,8,9,10,11)
 	num_ok = 0
-        for i in temperatures.values():
-                myIndex = i[tempIndex]
-                myStatus = i[tempHealthStatus]
-                myDetails = i[tempDescr]
+	for i in temperatures.values():
+		myIndex = i[tempIndex]
+		myStatus = i[tempHealthStatus]
+		myDetails = i[tempDescr]
 		myTemp = i[tempReading]
 		myTempCritLimitHigh = i[tempCritLimitHigh]
 		if myTempCritLimitHigh == "N/A": myTempCritLimitHigh = "" 
 		myTempNonCritLimitHigh = i[tempNonCritLimitHigh]
 		if myTempNonCritLimitHigh == "N/A": myTempNonCritLimitHigh = "" 
-                if myIndex == opts.exclude: continue
-                if myStatus != "Normal":
-                        nagios_status(warning)
-                        add_summary( 'Temparature "%s" status "%s". %s. ' % (myIndex,myStatus,myDetails) )
-                else:
-                        num_ok = num_ok + 1
-                add_long('Temperature "%s" status "%s". %s:  %s;%s;%s' % (myIndex,myStatus,myDetails,myTemp,myTempNonCritLimitHigh,myTempCritLimitHigh) )
-        add_summary( "%s out of %s temperature are healthy" % (num_ok, len(temperatures) ) )
-        add_perfdata( "'Number of temperatures'=%s" % (len(temperatures) ) )
+		if myIndex == opts.exclude: continue
+		if myStatus != "Normal":
+			nagios_status(warning)
+			add_summary( 'Temparature "%s" status "%s". %s. ' % (myIndex,myStatus,myDetails) )
+		else:
+			num_ok = num_ok + 1
+		add_long('Temperature "%s" status "%s". %s:	 %s;%s;%s' % (myIndex,myStatus,myDetails,myTemp,myTempNonCritLimitHigh,myTempCritLimitHigh) )
+		add_summary( "%s out of %s temperature are healthy" % (num_ok, len(temperatures) ) )
+		add_perfdata( "'Number of temperatures'=%s" % (len(temperatures) ) )
 
-        nagios_status(ok)
-
-
-#	if opts.critical_threshold is not None and float_temp > opts.critical_threshold:
-#		nagios_status(critical)
-#		add_summary( "ambient temperature (%s) is over critical thresholds (%s). " % (str_temp, opts.critical_threshold) )
-#	elif opts.warning_threshold is not None and float_temp > opts.warning_threshold:
-#		nagios_status(warning)
-#		add_summary( "ambient temperature (%s) is over warning thresholds (%s). " % (str_temp, opts.warning_threshold) )
-#	else:
-#		add_summary( "Ambient temperature = %s. " % (str_temp) )
+		nagios_status(ok)
 
 def check_voltage():
 	# voltage test
 	voltages = getTable("1.3.6.1.4.1.19046.11.1.1.2.2")
-#	print "voltage %s" % voltages
 	voltIndex,voltDescr,voltReading,voltNominalReading,voltNonRecovLimitHigh,voltCritLimitHigh,voltNonCritLimitHigh,voltNonRecovLimitLow,voltCritLimitLow,voltNonCritLimitLow,voltHealthStatus = (1,2,3,4,5,6,7,8,9,10,11)
 	num_ok = 0
 	for i in voltages.values():
@@ -415,23 +418,87 @@ def check_voltage():
 		myStatus = i[voltHealthStatus]
 		myDescr = i[voltDescr]
 		myVolt = i[voltReading]
-                myVoltCritLimitHigh = i[voltCritLimitHigh]
-                if myVoltCritLimitHigh == "N/A": myVoltCritLimitHigh = ""
-                myVoltNonCritLimitHigh = i[voltNonCritLimitHigh]
-                if myVoltNonCritLimitHigh == "N/A": myVoltNonCritLimitHigh = ""
-                if myIndex == opts.exclude: continue
-                if myStatus != "Normal":
-                        nagios_status(warning)
-                        add_summary( 'Voltage "%s" status "%s". %s. ' % (myIndex,myStatus,myDescr) )
-                else:
-                        num_ok = num_ok + 1
-                add_long('Voltage "%s" status "%s". %s:  %s;%s;%s' % (myIndex,myStatus,myDescr,myVolt,myVoltNonCritLimitHigh,myVoltCritLimitHigh) )
-        add_summary( "%s out of %s voltages are healthy" % (num_ok, len(voltages) ) )
-        add_perfdata( "'Number of voltages'=%s" % (len(voltages) ) )
+		myVoltCritLimitHigh = i[voltCritLimitHigh]
+		if myVoltCritLimitHigh == "N/A": myVoltCritLimitHigh = ""
+		myVoltNonCritLimitHigh = i[voltNonCritLimitHigh]
+		if myVoltNonCritLimitHigh == "N/A": myVoltNonCritLimitHigh = ""
+		if myIndex == opts.exclude: continue
+		if myStatus != "Normal":
+			nagios_status(warning)
+			add_summary( 'Voltage "%s" status "%s". %s. ' % (myIndex,myStatus,myDescr) )
+		else:
+			num_ok = num_ok + 1
+		add_long('Voltage "%s" status "%s". %s:	 %s;%s;%s' % (myIndex,myStatus,myDescr,myVolt,myVoltNonCritLimitHigh,myVoltCritLimitHigh) )
+	add_summary( "%s out of %s voltages are healthy" % (num_ok, len(voltages) ) )
+	add_perfdata( "'Number of voltages'=%s" % (len(voltages) ) )
 
-        nagios_status(ok)
+	nagios_status(ok)
 
+def check_cpu():
+	cpus = getTable("1.3.6.1.4.1.19046.11.1.1.5.20.1")
+	cpuVpdIndex,cpuVpdDescription,cpuVpdSpeed,cpuVpdIdentifier,cpuVpdType,cpuVpdFamily,cpuVpdCores,cpuVpdThreads,cpuVpdVoltage,cpuVpdDataWidth,cpuVpdHealthStatus,cpuVpdCpuModel = (1,2,3,4,5,6,7,8,9,10,11,12)
+	num_ok = 0
+	for i in cpus.values():
+		 myIndex = i[cpuVpdIndex]
+		 myStatus = i[cpuVpdHealthStatus]
+		 myDescr = i[cpuVpdDescription]
+		 if myIndex == opts.exclude: continue
+		 if myStatus == "Normal":
+			   num_ok = num_ok + 1
+		 elif myStatus == "Warning":
+			   nagios_status(warning)
+		 else:
+			   nagios_status(critical)
 
+		 add_long('"%s" status "%s". ' % (myDescr, myStatus) )
+	add_summary('%s out of %s CPUs are healthy.' % (num_ok, len(cpus)) )
+	add_perfdata("'Number of CPUs'=%s" % (len(cpus)))
+
+	nagios_status(ok)
+
+def check_storage():
+	disks = getTable("1.3.6.1.4.1.19046.11.1.1.12.2.1")
+	diskIndex,diskFruName,diskHealthStatus = (1,2,3)
+	num_ok = 0
+	for i in disks.values():
+		myIndex = i[diskIndex]
+		myFruName = i[diskFruName]
+		myStatus = i[diskHealthStatus]
+		if myIndex == opts.exclude: continue
+		if myStatus == "Normal":
+			num_ok = num_ok + 1
+		elif myStatus == "Warning":
+			nagios_status(warning)
+		else:
+			nagios_status(critical)
+		add_long('Disk "%s" status "%s". ' % (myFruName, myStatus))
+	
+	add_summary('%s out of %s disks are healthy.' % (num_ok, len(disks)) )
+	add_perfdata("'Number of Disk=%s'" % len(disks))
+	
+	nagios_status(ok)
+
+def check_memory():
+	memory = getTable("1.3.6.1.4.1.19046.11.1.1.5.21.1")
+	memoryVpdIndex,memoryVpdDescription,memoryVpdPartNumber,memoryVpdFRUSerialNumber,memroyVpdManufactureDate,memoryVpdType,memoryVpdSize,memoryHealthStatus,memoryConfigSpeed,memoryRatedSpeed,memoryLenovoPartNumber = (1,2,3,4,5,6,7,8,9,10,11)
+	num_ok = 0
+	for i in memory.values():
+		 myIndex = i[memoryVpdIndex]
+		 myStatus = i[memoryHealthStatus]
+		 myDescr = i[memoryVpdDescription]
+		 if myIndex == opts.exclude: continue
+		 if myStatus == "Normal":
+			  num_ok = num_ok + 1
+		 elif myStatus == "Warning":
+			  nagios_status(warning)
+		 else:
+			  nagios_status(critical)
+		 add_long('"%s" status "%s". ' % (myDescr, myStatus))
+	 
+	add_summary('%s out of %s memory are healthy.' % (num_ok, len(memory)) )
+	add_perfdata("'Number of Memory=%s'" % len(memory))
+
+	nagios_status(ok)
 
 if __name__ == '__main__':
 	try:
@@ -446,10 +513,19 @@ if __name__ == '__main__':
 			check_fans()
 		elif opts.mode == 'voltage':
 			check_voltage()
+		elif opts.mode == 'cpu':
+			check_cpu()
+		elif opts.mode == 'storage':
+			check_storage()
+		elif opts.mode == 'memory':
+			check_memory()
 		else:
 			parser.error("%s is not a valid option for --mode" % opts.mode)
-	except Exception, e:
-		print "Unhandled exception while running script: %s" % e
+	except:
+		#printf ("Unhandled exception while running script " )
+		infor = exc_info()
+		debug ("%s : %s" % (infor[0], infor[1]))
 		exit(unknown)
 	end()
+
 
