@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright 2010, Pall Sigurdsson <palli@opensource.is>
 #
@@ -92,9 +92,9 @@ from sys import argv
 from sys import exc_info
 from os import getenv,putenv,environ
 import subprocess
-from distutils.log import Log
+from logging import Logger
 # Init log level to infor
-log = Log(2)
+log = Logger(2)
 printf = log.info
 
 # Parse some Arguments
